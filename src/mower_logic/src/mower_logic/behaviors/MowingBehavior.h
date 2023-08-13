@@ -88,6 +88,8 @@ public:
     void checkpoint();
 
     bool restore_checkpoint();
+
+    static geometry_msgs::Polygon densePolygonPointsForSlicer(const geometry_msgs::Polygon &polygon, float pointsDensity);
 };
 
 

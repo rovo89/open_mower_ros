@@ -16,6 +16,8 @@
 //
 #include "IdleBehavior.h"
 #include "PerimeterDocking.h"
+#include <actionlib/server/simple_action_server.h>
+#include "mower_msgs/MowPathsAction.h"
 
 extern void stopMoving();
 extern void stopBlade();
@@ -32,12 +34,34 @@ extern dynamic_reconfigure::Server<mower_logic::MowerLogicConfig> *reconfigServe
 extern ros::ServiceClient mapClient;
 extern ros::ServiceClient dockingPointClient;
 
+extern actionlib::SimpleActionServer<mower_msgs::MowPathsAction> *mowPathsServer;
+extern std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
+extern int currentMowingPath;
+extern int currentMowingPathIndex;
 
 IdleBehavior IdleBehavior::INSTANCE(false);
 IdleBehavior IdleBehavior::DOCKED_INSTANCE(true);
 
 std::string IdleBehavior::state_name() {
     return "IDLE";
+}
+
+void acceptGoal() {
+    auto goal = mowPathsServer->acceptNewGoal();
+    if (mowPathsServer->isPreemptRequested()) {
+        mowPathsServer->setPreempted();
+    } else {
+        currentMowingPaths = goal->paths;
+        currentMowingPath = goal->start_path;
+        currentMowingPathIndex = goal->start_point;
+    }
+}
+
+void cancelGoal() {
+    mowPathsServer->setPreempted();
+    currentMowingPaths.clear();
+    currentMowingPath = 0;
+    currentMowingPathIndex = 0;
 }
 
 Behavior *IdleBehavior::execute() {
@@ -71,12 +95,19 @@ Behavior *IdleBehavior::execute() {
         const auto last_config = getConfig();
         const auto last_status = getStatus();
 
-        const bool automatic_mode = last_config.automatic_mode == eAutoMode::AUTO;
-        const bool active_semiautomatic_task = last_config.automatic_mode == eAutoMode::SEMIAUTO && shared_state->active_semiautomatic_task && !shared_state->semiautomatic_task_paused;
+        const bool has_new_goal = mowPathsServer->isNewGoalAvailable();
         const bool mower_ready = last_status.v_battery > last_config.battery_full_voltage && last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
                 !last_config.manual_pause_mowing;
 
-        if (manual_start_mowing || ((automatic_mode || active_semiautomatic_task) && mower_ready)) {
+        if (mowPathsServer->isPreemptRequested()) {
+            cancelGoal();
+        }
+
+        if ((mowPathsServer->isActive() || has_new_goal) && (manual_start_mowing || mower_ready)) {
+            if (has_new_goal) {
+                acceptGoal();
+            }
+
             // set the robot's position to the dock if we're actually docked
             if(last_status.v_charge > 5.0) {
               if (PerimeterUndockingBehavior::configured(config))
@@ -151,6 +182,7 @@ void IdleBehavior::command_start() {
     // We got start, so we can reset the last manual pause
     shared_state->semiautomatic_task_paused = false;
     manual_start_mowing = true;
+    // TODO: Create new playlist (or resume existing).
 }
 
 void IdleBehavior::command_s1() {

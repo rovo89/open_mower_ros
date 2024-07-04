@@ -32,21 +32,13 @@ private:
 
     bool skip_area;
     bool skip_path;
-    bool create_mowing_plan(int area_index);
 
     bool execute_mowing_plan();
 
     // Progress
     bool mowerEnabled = false;
-    std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
 
     ros::Time last_checkpoint;
-    int currentMowingPath;
-    int currentMowingArea;
-    int currentMowingPathIndex;
-    std::string currentMowingPlanDigest;
-    double currentMowingAngleIncrementSum;
-
 
 public:
     MowingBehavior();
@@ -91,9 +83,6 @@ public:
 
     void update_actions();
 
-    void checkpoint();
-
-    bool restore_checkpoint();
 };
 
 

@@ -18,7 +18,6 @@
 // #define VERBOSE_DEBUG   1
 
 #include "ros/ros.h"
-#include "slic3r_coverage_planner/PlanPath.h"
 #include "mower_map/GetMowingAreaSrv.h"
 #include "mower_map/GetDockingPointSrv.h"
 #include "mower_map/SetDockingPointSrv.h"
@@ -53,8 +52,10 @@
 #include <atomic>
 #include <sstream>
 #include <ios>
+#include <actionlib/server/simple_action_server.h>
+#include "mower_msgs/MowPathsAction.h"
 
-ros::ServiceClient pathClient, mapClient, dockingPointClient, gpsClient, mowClient, emergencyClient, pathProgressClient, setNavPointClient, clearNavPointClient, clearMapClient, positioningClient, actionRegistrationClient;
+ros::ServiceClient mapClient, dockingPointClient, gpsClient, mowClient, emergencyClient, pathProgressClient, setNavPointClient, clearNavPointClient, clearMapClient, positioningClient, actionRegistrationClient;
 
 ros::NodeHandle *n;
 ros::NodeHandle *paramNh;
@@ -86,6 +87,11 @@ Behavior *currentBehavior = &IdleBehavior::INSTANCE;
 std::vector<xbot_msgs::ActionInfo> rootActions;
 ros::Time last_v_battery_check;
 double max_v_battery_seen = 0.0;
+
+actionlib::SimpleActionServer<mower_msgs::MowPathsAction> *mowPathsServer;
+std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
+int currentMowingPath = 0;
+int currentMowingPathIndex = 0;
 
 /**
  * Some thread safe methods to get a copy of the logic state
@@ -640,6 +646,11 @@ void buildRootActions() {
     rootActions.push_back(reset_emergency_action);
 }
 
+void preemptReceived() {
+    abortExecution();
+    // The preempt request is acknowledged once we have reached idle state again.
+}
+
 int main(int argc, char **argv) {
     buildRootActions();
 
@@ -662,8 +673,6 @@ int main(int argc, char **argv) {
     path_pub = n->advertise<nav_msgs::Path>("mower_logic/mowing_path", 100, true);
     high_level_state_publisher = n->advertise<mower_msgs::HighLevelStatus>("mower_logic/current_state", 100, true);
 
-    pathClient = n->serviceClient<slic3r_coverage_planner::PlanPath>(
-            "slic3r_coverage_planner/plan_path");
     mapClient = n->serviceClient<mower_map::GetMowingAreaSrv>(
             "mower_map_service/get_mowing_area");
     clearMapClient = n->serviceClient<mower_map::ClearMapSrv>(
@@ -696,7 +705,9 @@ int main(int argc, char **argv) {
 
     mbfClient = new actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction>("/move_base_flex/move_base");
     mbfClientExePath = new actionlib::SimpleActionClient<mbf_msgs::ExePathAction>("/move_base_flex/exe_path");
-
+    mowPathsServer = new actionlib::SimpleActionServer<mower_msgs::MowPathsAction>(*n, "mow_area", false);
+    mowPathsServer->registerPreemptCallback(&preemptReceived);
+    mowPathsServer->start();
 
     ros::Subscriber status_sub = n->subscribe("/mower/status", 0, statusReceived,
                                               ros::TransportHints().tcpNoDelay(true));
@@ -720,6 +731,7 @@ int main(int argc, char **argv) {
             delete (reconfigServer);
             delete (mbfClient);
             delete (mbfClientExePath);
+            delete (mowPathsServer);
             return 1;
         }
         r.sleep();
@@ -731,6 +743,7 @@ int main(int argc, char **argv) {
             delete (reconfigServer);
             delete (mbfClient);
             delete (mbfClientExePath);
+            delete (mowPathsServer);
             return 1;
         }
         r.sleep();
@@ -743,27 +756,19 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
 
         return 1;
     }
 
 
-    ROS_INFO("Waiting for path server");
-    if (!pathClient.waitForExistence(ros::Duration(60.0, 0.0))) {
-        ROS_ERROR("Path service not found.");
-        delete (reconfigServer);
-        delete (mbfClient);
-        delete (mbfClientExePath);
-
-
-        return 1;
-    }
     ROS_INFO("Waiting for mower service");
     if (!mowClient.waitForExistence(ros::Duration(60.0, 0.0))) {
         ROS_ERROR("Mower service not found.");
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
 
 
         return 1;
@@ -775,6 +780,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
 
         return 1;
     }
@@ -784,6 +790,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
 
         return 1;
     }
@@ -795,6 +802,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
         return 2;
     }
     ROS_INFO("Waiting for docking point server");
@@ -803,6 +811,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
         return 2;
     }
     ROS_INFO("Waiting for nav point server");
@@ -811,6 +820,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
         return 2;
     }
     ROS_INFO("Waiting for clear nav point server");
@@ -819,6 +829,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
         return 2;
     }
 
@@ -828,6 +839,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
         return 3;
     }
 
@@ -837,6 +849,7 @@ int main(int argc, char **argv) {
         delete (reconfigServer);
         delete (mbfClient);
         delete (mbfClientExePath);
+        delete (mowPathsServer);
         return 3;
     }
 
@@ -894,5 +907,6 @@ int main(int argc, char **argv) {
     delete (reconfigServer);
     delete (mbfClient);
     delete (mbfClientExePath);
+    delete (mowPathsServer);
     return 0;
 }

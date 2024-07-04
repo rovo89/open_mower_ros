@@ -1,0 +1,10 @@
+# Goal
+slic3r_coverage_planner/Path[] paths
+uint32 start_path
+uint32 start_point
+---
+# Result
+---
+# Feedback
+uint32 current_path
+uint32 current_point

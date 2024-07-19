@@ -73,33 +73,35 @@ Behavior *IdleBehavior::execute() {
     while (ros::ok()) {
         stopMoving();
         stopBlade();
+
         const auto last_config = getConfig();
         const auto last_status = getStatus();
-
-        const bool has_new_goal = mowPathsServer->isNewGoalAvailable();
-        const bool mower_ready = last_status.v_battery > last_config.battery_full_voltage && last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
+        const bool mower_ready =
+                last_status.v_battery > last_config.battery_full_voltage &&
+                last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
                 !last_config.manual_pause_mowing;
 
         if (mowPathsServer->isPreemptRequested()) {
             cancelGoal();
         }
 
-        if ((mowPathsServer->isActive() || has_new_goal) && (manual_start_mowing || mower_ready)) {
-            if (has_new_goal) {
+        if (mower_ready || manual_start_mowing) {
+            if (mowPathsServer->isNewGoalAvailable()) {
                 acceptGoal();
             }
-
-            // set the robot's position to the dock if we're actually docked
-            if(last_status.v_charge > 5.0) {
-              if (PerimeterUndockingBehavior::configured(config))
-                return &PerimeterUndockingBehavior::INSTANCE;
-              ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
-              setRobotPose(docking_pose_stamped.pose);
-              return &UndockingBehavior::INSTANCE;
+            if (mowPathsServer->isActive()) {
+                // set the robot's position to the dock if we're actually docked
+                if(last_status.v_charge > 5.0) {
+                    if (PerimeterUndockingBehavior::configured(config))
+                        return &PerimeterUndockingBehavior::INSTANCE;
+                    ROS_INFO_STREAM("Currently inside the docking station, we set the robot's pose to the docks pose.");
+                    setRobotPose(docking_pose_stamped.pose);
+                    return &UndockingBehavior::INSTANCE;
+                }
+                // Not docked, so just mow
+                setGPS(true);
+                return &MowingBehavior::INSTANCE;
             }
-            // Not docked, so just mow
-            setGPS(true);
-            return &MowingBehavior::INSTANCE;
         }
 
         if(start_area_recorder) {

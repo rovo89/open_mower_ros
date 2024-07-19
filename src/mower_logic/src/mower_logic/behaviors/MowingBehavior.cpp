@@ -36,9 +36,11 @@ extern void setConfig(mower_logic::MowerLogicConfig);
 extern void registerActions(std::string prefix, const std::vector<xbot_msgs::ActionInfo> &actions);
 
 extern actionlib::SimpleActionServer<mower_msgs::MowPathsAction> *mowPathsServer;
+extern void acceptGoal();
 extern std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
 extern int currentMowingPath;
 extern int currentMowingPathIndex;
+extern bool expectMoreGoals;
 
 MowingBehavior MowingBehavior::INSTANCE;
 
@@ -52,10 +54,17 @@ std::string MowingBehavior::state_name() {
 Behavior *MowingBehavior::execute() {
     shared_state->active_semiautomatic_task = true;
 
-    if (ros::ok() && !aborted) {
+    ros::Rate waitForNewGoalRate(0.2);
+    while (ros::ok() && !aborted && mowPathsServer->isActive()) {
         bool finished = execute_mowing_plan();
-        if (finished && mowPathsServer->isActive()) {
+        if (finished) {
             mowPathsServer->setSucceeded();
+            if (expectMoreGoals) {
+                while (!mowPathsServer->isNewGoalAvailable()) {
+                    waitForNewGoalRate.sleep();
+                }
+                acceptGoal();
+            }
         }
     }
 

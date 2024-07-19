@@ -92,6 +92,7 @@ actionlib::SimpleActionServer<mower_msgs::MowPathsAction> *mowPathsServer;
 std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
 int currentMowingPath = 0;
 int currentMowingPathIndex = 0;
+bool expectMoreGoals = false;
 
 /**
  * Some thread safe methods to get a copy of the logic state
@@ -654,6 +655,7 @@ void acceptGoal() {
         currentMowingPaths = goal->paths;
         currentMowingPath = goal->start_path;
         currentMowingPathIndex = goal->start_point;
+        expectMoreGoals = true; // TODO
     }
 }
 

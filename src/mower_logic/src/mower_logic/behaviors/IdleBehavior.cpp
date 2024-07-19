@@ -35,33 +35,14 @@ extern ros::ServiceClient mapClient;
 extern ros::ServiceClient dockingPointClient;
 
 extern actionlib::SimpleActionServer<mower_msgs::MowPathsAction> *mowPathsServer;
-extern std::vector<slic3r_coverage_planner::Path> currentMowingPaths;
-extern int currentMowingPath;
-extern int currentMowingPathIndex;
+extern void acceptGoal();
+extern void cancelGoal();
 
 IdleBehavior IdleBehavior::INSTANCE(false);
 IdleBehavior IdleBehavior::DOCKED_INSTANCE(true);
 
 std::string IdleBehavior::state_name() {
     return "IDLE";
-}
-
-void acceptGoal() {
-    auto goal = mowPathsServer->acceptNewGoal();
-    if (mowPathsServer->isPreemptRequested()) {
-        mowPathsServer->setPreempted();
-    } else {
-        currentMowingPaths = goal->paths;
-        currentMowingPath = goal->start_path;
-        currentMowingPathIndex = goal->start_point;
-    }
-}
-
-void cancelGoal() {
-    mowPathsServer->setPreempted();
-    currentMowingPaths.clear();
-    currentMowingPath = 0;
-    currentMowingPathIndex = 0;
 }
 
 Behavior *IdleBehavior::execute() {

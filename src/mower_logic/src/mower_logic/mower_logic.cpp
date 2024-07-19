@@ -646,6 +646,24 @@ void buildRootActions() {
     rootActions.push_back(reset_emergency_action);
 }
 
+void acceptGoal() {
+    auto goal = mowPathsServer->acceptNewGoal();
+    if (mowPathsServer->isPreemptRequested()) {
+        mowPathsServer->setPreempted();
+    } else {
+        currentMowingPaths = goal->paths;
+        currentMowingPath = goal->start_path;
+        currentMowingPathIndex = goal->start_point;
+    }
+}
+
+void cancelGoal() {
+    mowPathsServer->setPreempted();
+    currentMowingPaths.clear();
+    currentMowingPath = 0;
+    currentMowingPathIndex = 0;
+}
+
 void preemptReceived() {
     abortExecution();
     // The preempt request is acknowledged once we have reached idle state again.

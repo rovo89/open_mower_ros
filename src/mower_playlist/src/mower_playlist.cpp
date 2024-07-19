@@ -33,7 +33,7 @@ mower_logic::MowerLogicConfig config = {
 double currentMowingAngleIncrementSum = 0;
 std::string currentMowingPlanDigest = "";
 
-mower_msgs::MowPathsGoalConstPtr create_mowing_plan(Task task) {
+mower_msgs::MowPathsGoalPtr create_mowing_plan(Task task) {
     mower_msgs::MowPathsGoalPtr goal(new mower_msgs::MowPathsGoal);
 
     ROS_INFO_STREAM("MowingBehavior: Creating mowing plan for area: " << task.area_index);
@@ -143,6 +143,7 @@ bool handle_tasks() {
     t.angle_offset += 90;
     tasks.push_back(t);
 
+    size_t remaining = tasks.size();
     for (auto task : tasks) {
         auto goal = create_mowing_plan(task);
         if (goal == nullptr) {
@@ -154,6 +155,7 @@ bool handle_tasks() {
         }
 
         // We have a plan, execute it
+        goal->expect_more_goals = --remaining > 0;
         ROS_INFO_STREAM("MowingBehavior: Executing mowing plan");
         auto result = mowPathsClient->sendGoalAndWait(*goal);
         if (result != actionlib::SimpleClientGoalState::SUCCEEDED) {

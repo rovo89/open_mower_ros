@@ -655,7 +655,7 @@ void acceptGoal() {
         currentMowingPaths = goal->paths;
         currentMowingPath = goal->start_path;
         currentMowingPathIndex = goal->start_point;
-        expectMoreGoals = true; // TODO
+        expectMoreGoals = goal->expect_more_goals;
     }
 }
 

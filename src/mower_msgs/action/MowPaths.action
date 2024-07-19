@@ -2,6 +2,7 @@
 slic3r_coverage_planner/Path[] paths
 uint32 start_path
 uint32 start_point
+bool expect_more_goals
 ---
 # Result
 ---

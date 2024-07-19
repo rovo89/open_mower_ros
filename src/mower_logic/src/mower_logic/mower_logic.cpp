@@ -705,7 +705,7 @@ int main(int argc, char **argv) {
 
     mbfClient = new actionlib::SimpleActionClient<mbf_msgs::MoveBaseAction>("/move_base_flex/move_base");
     mbfClientExePath = new actionlib::SimpleActionClient<mbf_msgs::ExePathAction>("/move_base_flex/exe_path");
-    mowPathsServer = new actionlib::SimpleActionServer<mower_msgs::MowPathsAction>(*n, "mow_area", false);
+    mowPathsServer = new actionlib::SimpleActionServer<mower_msgs::MowPathsAction>(*n, "mower_logic/mow_paths", false);
     mowPathsServer->registerPreemptCallback(&preemptReceived);
     mowPathsServer->start();
 

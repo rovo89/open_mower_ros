@@ -18,6 +18,7 @@ actionlib::SimpleActionClient<mower_msgs::MowPathsAction> *mowPathsClient;
 
 struct Task {
     int area_index;
+    int start_path;
     double angle_offset;
     bool angle_offset_is_absolute;
     // TODO: Add more settings.
@@ -25,36 +26,15 @@ struct Task {
 
 // FIXME
 #include "mower_logic/MowerLogicConfig.h"
-mower_logic::MowerLogicConfig config;
+mower_logic::MowerLogicConfig config = {
+    .outline_count = 3,
+    .tool_width = 0.13,
+};
 double currentMowingAngleIncrementSum = 0;
 std::string currentMowingPlanDigest = "";
 
-int main(int argc, char **argv) {
-    ros::init(argc, argv, "mower_logic");
-    n = new ros::NodeHandle();
-
-    pathClient = n->serviceClient<slic3r_coverage_planner::PlanPath>(
-            "slic3r_coverage_planner/plan_path");
-    mapClient = n->serviceClient<mower_map::GetMowingAreaSrv>(
-            "mower_map_service/get_mowing_area");
-
-    ROS_INFO("Waiting for path server");
-    if (!pathClient.waitForExistence(ros::Duration(60.0, 0.0))) {
-        ROS_ERROR("Path service not found.");
-        return 1;
-    }
-
-    ROS_INFO("Waiting for map server");
-    if (!mapClient.waitForExistence(ros::Duration(60.0, 0.0))) {
-        ROS_ERROR("Map server service not found.");
-        return 2;
-    }
-
-    return 0;
-}
-
 mower_msgs::MowPathsGoalConstPtr create_mowing_plan(Task task) {
-    mower_msgs::MowPathsGoalPtr goal;
+    mower_msgs::MowPathsGoalPtr goal(new mower_msgs::MowPathsGoal);
 
     ROS_INFO_STREAM("MowingBehavior: Creating mowing plan for area: " << task.area_index);
 
@@ -112,7 +92,7 @@ mower_msgs::MowPathsGoalConstPtr create_mowing_plan(Task task) {
     }
 
     goal->paths = pathSrv.response.paths;
-    goal->start_path = 0;
+    goal->start_path = task.start_path;
     goal->start_point = 0;
 
     // Calculate mowing plan digest from the poses
@@ -154,9 +134,13 @@ bool handle_tasks() {
     std::vector<Task> tasks;
     Task t {
         .area_index = 0,
+        .start_path = 0,
         .angle_offset = config.mow_angle_offset,
         .angle_offset_is_absolute = config.mow_angle_offset_is_absolute,
     };
+    tasks.push_back(t);
+    t.start_path = 1;
+    t.angle_offset += 90;
     tasks.push_back(t);
 
     for (auto task : tasks) {
@@ -235,3 +219,36 @@ bool MowingBehavior::restore_checkpoint() {
     return found;
 }
 */
+
+int main(int argc, char **argv) {
+    ros::init(argc, argv, "mower_logic");
+    n = new ros::NodeHandle();
+
+    pathClient = n->serviceClient<slic3r_coverage_planner::PlanPath>(
+            "slic3r_coverage_planner/plan_path");
+    mapClient = n->serviceClient<mower_map::GetMowingAreaSrv>(
+            "mower_map_service/get_mowing_area");
+
+    ROS_INFO("Waiting for path server");
+    if (!pathClient.waitForExistence(ros::Duration(60.0, 0.0))) {
+        ROS_ERROR("Path service not found.");
+        return 1;
+    }
+
+    ROS_INFO("Waiting for map server");
+    if (!mapClient.waitForExistence(ros::Duration(60.0, 0.0))) {
+        ROS_ERROR("Map server service not found.");
+        return 2;
+    }
+
+    mowPathsClient = new actionlib::SimpleActionClient<mower_msgs::MowPathsAction>("mower_logic/mow_paths");
+    if (!mowPathsClient->waitForServer(ros::Duration(60.0, 0.0))) {
+        ROS_ERROR("Mow paths action server not found.");
+        return 2;
+    }
+
+    handle_tasks();
+    ros::spin();
+
+    return 0;
+}

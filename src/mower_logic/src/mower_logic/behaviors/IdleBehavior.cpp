@@ -79,14 +79,15 @@ Behavior *IdleBehavior::execute() {
         const auto last_status = getStatus();
         const bool mower_ready =
                 last_status.v_battery > last_config.battery_full_voltage &&
-                last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature &&
-                !last_config.manual_pause_mowing;
+                last_status.mow_esc_status.temperature_motor < last_config.motor_cold_temperature;
+        const bool start_mowing_when_ready = last_config.automatic_mode != eAutoMode::MANUAL;
+        const bool paused = last_config.manual_pause_mowing;
 
         if (mowPathsServer->isPreemptRequested()) {
             cancelGoal();
         }
 
-        if (mower_ready || manual_start_mowing) {
+        if (mower_ready && start_mowing_when_ready && !paused || manual_start_mowing) {
             if (mowPathsServer->isNewGoalAvailable()) {
                 acceptGoal();
             }

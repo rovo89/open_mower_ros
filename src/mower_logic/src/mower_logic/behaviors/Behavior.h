@@ -35,8 +35,7 @@ enum pauseType {
 };
 
 struct sSharedState {
-    // True, if the semiautomatic task is still in progress
-    bool active_semiautomatic_task;
+    // TODO: Remove if nothing else uses this concept.
 };
 
 /**

@@ -52,8 +52,6 @@ std::string MowingBehavior::state_name() {
 }
 
 Behavior *MowingBehavior::execute() {
-    shared_state->active_semiautomatic_task = true;
-
     ros::Rate waitForNewGoalRate(0.2);
     while (ros::ok() && !aborted && mowPathsServer->isActive()) {
         bool finished = execute_mowing_plan();
@@ -94,12 +92,7 @@ void MowingBehavior::exit() {
     registerActions("mower_logic:mowing", actions);
 }
 
-void MowingBehavior::reset() {
-    if (config.automatic_mode == eAutoMode::SEMIAUTO) {
-        ROS_INFO_STREAM("MowingBehavior: Finished semiautomatic task");
-        shared_state->active_semiautomatic_task = false;
-    }
-}
+void MowingBehavior::reset() {}
 
 bool MowingBehavior::needs_gps() {
     return true;
@@ -456,13 +449,14 @@ bool MowingBehavior::execute_mowing_plan() {
 }
 
 void MowingBehavior::command_home() {
-    if(shared_state->active_semiautomatic_task) {
-        // We are in semiautomatic task, mark it as manually paused.
-        ROS_INFO_STREAM("Manually pausing semiautomatic task");
-        auto config = getConfig();
-        config.manual_pause_mowing = true;
-        setConfig(config);
-    }
+    ROS_INFO_STREAM("MowingBehavior: HOME");
+
+    // Require explicit approval to start mowing again
+    ROS_INFO_STREAM("Preventing auto-start");
+    auto config = getConfig();
+    config.manual_pause_mowing = true;
+    setConfig(config);
+
     if (paused)
     {
         // Request continue to wait for odom
@@ -474,14 +468,16 @@ void MowingBehavior::command_home() {
 
 void MowingBehavior::command_start() {
     ROS_INFO_STREAM("MowingBehavior: MANUAL CONTINUE");
+
     auto config = getConfig();
-    if(shared_state->active_semiautomatic_task && config.manual_pause_mowing) {
-        // We are in semiautomatic task and paused, user wants to resume, so store that immediately.
+    if(config.manual_pause_mowing) {
+        // We are paused, user wants to resume, so store that immediately.
         // This way, once we are docked the mower will continue as soon as all other conditions are g2g
-        ROS_INFO_STREAM("Resuming semiautomatic task");
+        ROS_INFO_STREAM("Re-enabling auto-start");
         config.manual_pause_mowing = false;
         setConfig(config);
     }
+
     this->requestContinue();
 }
 

@@ -29,6 +29,7 @@ extern void registerActions(std::string prefix, const std::vector<xbot_msgs::Act
 extern ros::ServiceClient dockingPointClient;
 extern mower_msgs::Status getStatus();
 extern mower_logic::MowerLogicConfig getConfig();
+extern void setConfig(mower_logic::MowerLogicConfig);
 extern dynamic_reconfigure::Server<mower_logic::MowerLogicConfig> *reconfigServer;
 
 extern ros::ServiceClient mapClient;
@@ -163,7 +164,10 @@ void IdleBehavior::command_home() {
 
 void IdleBehavior::command_start() {
     // We got start, so we can reset the last manual pause
-    shared_state->semiautomatic_task_paused = false;
+    auto config = getConfig();
+    config.manual_pause_mowing = false;
+    setConfig(config);
+
     manual_start_mowing = true;
     // TODO: Create new playlist (or resume existing).
 }

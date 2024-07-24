@@ -8,13 +8,17 @@
 #include "mower_logic/CheckPoint.h"
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include "mower_logic/TasklistConfig.h"
+#include <dynamic_reconfigure/server.h>
 
-ros::NodeHandle *n;
 ros::ServiceClient pathClient, mapClient;
 
 #include "mower_msgs/MowPathsAction.h"
 #include <actionlib/client/simple_action_client.h>
 actionlib::SimpleActionClient<mower_msgs::MowPathsAction> *mowPathsClient;
+
+dynamic_reconfigure::Server<mower_logic::TasklistConfig> *reconfigServer;
+mower_logic::TasklistConfig config;
 
 struct Task {
     int area_index;
@@ -24,12 +28,6 @@ struct Task {
     // TODO: Add more settings.
 };
 
-// FIXME
-#include "mower_logic/MowerLogicConfig.h"
-mower_logic::MowerLogicConfig config = {
-    .outline_count = 3,
-    .tool_width = 0.13,
-};
 double currentMowingAngleIncrementSum = 0;
 std::string currentMowingPlanDigest = "";
 
@@ -222,14 +220,22 @@ bool MowingBehavior::restore_checkpoint() {
 }
 */
 
+void reconfigureCB(mower_logic::TasklistConfig &c, uint32_t level) {
+    ROS_INFO_STREAM("Setting new Tasklist Config");
+    config = c;
+}
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mower_logic");
-    n = new ros::NodeHandle();
 
-    pathClient = n->serviceClient<slic3r_coverage_planner::PlanPath>(
-            "slic3r_coverage_planner/plan_path");
-    mapClient = n->serviceClient<mower_map::GetMowingAreaSrv>(
-            "mower_map_service/get_mowing_area");
+    ros::NodeHandle n;
+    ros::NodeHandle paramNh("~");
+
+    dynamic_reconfigure::Server<mower_logic::TasklistConfig> reconfig_server(paramNh);
+    reconfig_server.setCallback(reconfigureCB);
+
+    pathClient = n.serviceClient<slic3r_coverage_planner::PlanPath>("slic3r_coverage_planner/plan_path");
+    mapClient = n.serviceClient<mower_map::GetMowingAreaSrv>("mower_map_service/get_mowing_area");
 
     ROS_INFO("Waiting for path server");
     if (!pathClient.waitForExistence(ros::Duration(60.0, 0.0))) {

@@ -106,6 +106,7 @@ generate_messages(
  generate_dynamic_reconfigure_options(
          cfg/MowerLogic.cfg
          cfg/MowerOdometry.cfg
+         cfg/Tasklist.cfg
  )
 
 ###################################
@@ -183,7 +184,7 @@ add_executable(mower_logic
         src/mower_logic/behaviors/AreaRecordingBehavior.cpp
         )
 add_dependencies(mower_logic ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(mower_logic ${catkin_LIBRARIES} ${CRYPTOPP_LIBRARIES})
+target_link_libraries(mower_logic ${catkin_LIBRARIES})
 
 add_executable(mower_odometry src/mower_odometry/mower_odometry.cpp)
 add_dependencies(mower_odometry ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
@@ -196,6 +197,10 @@ target_link_libraries(mag_calibration ${catkin_LIBRARIES})
 add_executable(monitoring src/monitoring/monitoring.cpp)
 add_dependencies(monitoring ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
 target_link_libraries(monitoring ${catkin_LIBRARIES})
+
+add_executable(tasklist src/tasklist/tasklist.cpp)
+add_dependencies(tasklist ${catkin_EXPORTED_TARGETS} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(tasklist ${catkin_LIBRARIES} ${CRYPTOPP_LIBRARIES})
 
 
 #############
